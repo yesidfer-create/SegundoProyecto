@@ -1,0 +1,13 @@
+# Archivos temporales de MATLAB
+*.asv
+*.m~
+*.autosave
+
+# Archivos de sistema
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Configuración de usuario
+*.slxc
+*.slprj/
