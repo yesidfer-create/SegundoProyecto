@@ -1,5 +1,5 @@
 function [simbolos, bits_tx, k] = mapeo_psk(M, N)
-% MAPEO_PSK  Genera bits aleatorios y los mapea a símbolos M-PSK.
+% MAPEO_PSK  Genera bits aleatorios y los mapea a símbolos M-PSK (con Gray).
 %
 %   M:        orden (potencia de 2: 2, 4, 8, 16...)
 %   N:        número de símbolos a generar
@@ -20,7 +20,10 @@ bits_mat = reshape(bits_tx, k, N)';
 % Convertir a índices 0..M-1
 idx = bits_a_dec(bits_mat);
 
+% Aplicar código Gray
+idx_gray = bin_a_gray(idx);
+
 % Mapeo PSK: fase equiespaciada
-fase = 2*pi * idx / M;
+fase = 2*pi * idx_gray / M;
 simbolos = exp(1j * fase);
 end

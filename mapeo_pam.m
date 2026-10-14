@@ -1,5 +1,5 @@
 function [simbolos, bits_tx, k] = mapeo_pam(M, N)
-% MAPEO_PAM  Genera bits aleatorios y los mapea a símbolos M-PAM.
+% MAPEO_PAM  Genera bits aleatorios y los mapea a símbolos M-PAM (con Gray).
 %
 %   M:        orden (potencia de 2: 2, 4, 8, 16...)
 %   N:        número de símbolos a generar
@@ -20,9 +20,12 @@ bits_mat = reshape(bits_tx, k, N)';
 % Convertir a índices 0..M-1
 idx = bits_a_dec(bits_mat);
 
+% Aplicar código Gray
+idx_gray = bin_a_gray(idx);
+
 % Mapeo PAM: niveles equiespaciados
 niveles = -(M-1) : 2 : (M-1);
-simbolos = niveles(idx + 1).';
+simbolos = niveles(idx_gray + 1).';
 
 % Normalizar a energía unitaria
 E_avg = mean(niveles.^2);
