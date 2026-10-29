@@ -1,83 +1,69 @@
-%% espectro.m — Espectro en banda base y pasa banda
-% Calcula y grafica la densidad espectral de potencia (PSD) de:
-%   1) La señal en banda base (transmisión)
-%   2) La señal en pasa banda (recepción, modulada)
+%% espectro.m — Espectro en banda base y pasa banda (Sin Toolbox)
 clear; clc; close all;
 rng(42);
 
 %% ============ PARÁMETROS ============
-M       = 16;         % Orden de modulación
+M       = 16;
 tipo    = 'QAM';
 beta    = 0.35;
 span    = 6;
 sps     = 8;
 N       = 5000;
-EbNo_dB = 15;         % Alto para que la señal se vea limpia
-fc      = 0.15;       % Frecuencia portadora (normalizada, ciclos/muestra)
+EbNo_dB = 15;
+fc      = 0.15;
 
-%% ============ FILTRO ============
-h = filtro_srrc(beta, span, sps);
-retardo = span * sps;
-
-%% ============ MAPEO ============
+%% ============ MAPEO Y TX ============
 switch upper(tipo)
     case 'PAM', [simbolos, ~, k] = mapeo_pam(M, N);
     case 'QAM', [simbolos, ~, k] = mapeo_qam(M, N);
     case 'PSK', [simbolos, ~, k] = mapeo_psk(M, N);
 end
 
-%% ============ SEÑAL EN BANDA BASE ============
-simb_up = mi_upsample(simbolos, sps);
-sen_bb  = conv(simb_up, h, 'full');       % Banda base (compleja)
+h = filtro_srrc(beta, span, sps);
+sen_bb = conv(mi_upsample(simbolos, sps), h, 'full');
 
-%% ============ MODULACIÓN A PASA BANDA ============
-% Tomamos la parte real de la banda base y la multiplicamos por cos(2π·fc·t)
-% (en la práctica sería Re{s(t)·e^(j2π·fc·t)} )
-n    = (0:length(sen_bb)-1)';
-port = cos(2*pi*fc*n);
-sen_pb = real(sen_bb) .* port;            % Pasa banda (real)
+%% ============ MODULACIÓN PASA BANDA (CORREGIDA) ============
+n = (0:length(sen_bb)-1)';
+% Modulación correcta I/Q: I*cos - Q*sin
+sen_pb = real(sen_bb .* exp(1j*2*pi*fc*n)); 
 
-%% ============ CÁLCULO DE LA PSD ============
-% Método: FFT del módulo al cuadrado (periodograma) con ventana de Hann
-Nfft = 4096;
+%% ============ CANAL AWGN EN PASA BANDA ============
+% Para que el gráfico sea realmente "Rx", agregamos ruido a la señal pasa banda.
+EsNo_lin = 10^(EbNo_dB/10) * k;
+N0 = 1 / EsNo_lin;
+ruido_pb = sqrt(N0/4) * randn(size(sen_pb)); % Ruido real (varianza N0/2 en pasabanda)
+sen_pb_rx = sen_pb + ruido_pb;
 
-% --- PSD banda base ---
-ventana = hann(length(sen_bb));
-[PSD_bb, f_bb] = periodogram(sen_bb, ventana, Nfft, 1, 'centered');
-PSD_bb_dB = 10*log10(PSD_bb / max(PSD_bb));   % Normalizado a 0 dB
+%% ============ CÁLCULO DE PSD MANUAL (Sin Toolbox) ============
+N_fft = 4096;
+L = length(sen_bb);
 
-% --- PSD pasa banda ---
-ventana2 = hann(length(sen_pb));
-[PSD_pb, f_pb] = periodogram(sen_pb, ventana2, Nfft, 1, 'centered');
+% Ventana de Hann manual
+win = 0.5 * (1 - cos(2*pi*(0:L-1)'/(L-1)));
+
+% FFT banda base
+X_bb = fftshift(fft(sen_bb .* win, N_fft));
+PSD_bb = abs(X_bb).^2 / (N_fft * sum(win.^2));
+PSD_bb_dB = 10*log10(PSD_bb / max(PSD_bb));
+f_bb = (-N_fft/2 : N_fft/2-1) / N_fft;
+
+% FFT pasa banda
+X_pb = fftshift(fft(sen_pb_rx .* win, N_fft));
+PSD_pb = abs(X_pb).^2 / (N_fft * sum(win.^2));
 PSD_pb_dB = 10*log10(PSD_pb / max(PSD_pb));
+f_pb = (-N_fft/2 : N_fft/2-1) / N_fft;
 
 %% ============ GRÁFICAS ============
-figure('Name', 'Espectro — banda base y pasa banda', ...
-    'Position', [200 100 1100 500]);
+figure('Position', [200 100 1000 450]);
 
-% --- Banda base ---
 subplot(1, 2, 1);
-plot(f_bb, PSD_bb_dB, 'b', 'LineWidth', 1.5);
-grid on;
-xlabel('Frecuencia normalizada (ciclos/muestra)', 'FontSize', 11);
-ylabel('PSD (dB, normalizada)', 'FontSize', 11);
-title('Espectro en banda base (Tx)', 'FontSize', 12);
-xlim([-0.5 0.5]);
-ylim([-80 5]);
-xline(0.5*(1+beta)/sps, 'r--', '\alpha');
-xline(-0.5*(1+beta)/sps, 'r--', '-\alpha');
+plot(f_bb, PSD_bb_dB, 'b', 'LineWidth', 1.2); grid on;
+xlabel('Frecuencia normalizada'); ylabel('PSD (dB)');
+title('Espectro en banda base (Tx)');
+xlim([-0.5 0.5]); ylim([-80 5]);
 
-% --- Pasa banda ---
 subplot(1, 2, 2);
-plot(f_pb, PSD_pb_dB, 'r', 'LineWidth', 1.5);
-grid on;
-xlabel('Frecuencia normalizada (ciclos/muestra)', 'FontSize', 11);
-ylabel('PSD (dB, normalizada)', 'FontSize', 11);
-title(sprintf('Espectro en pasa banda (Rx, f_c = %.2f)', fc), 'FontSize', 12);
-xlim([-0.5 0.5]);
-ylim([-80 5]);
-xline(fc, 'k--', 'f_c');
-xline(-fc, 'k--', '-f_c');
-
-sgtitle(sprintf('%d-%s (\\beta = %.2f, sps = %d)', M, tipo, beta, sps), ...
-    'FontSize', 13, 'FontWeight', 'bold');
+plot(f_pb, PSD_pb_dB, 'r', 'LineWidth', 1.2); grid on;
+xlabel('Frecuencia normalizada'); ylabel('PSD (dB)');
+title(sprintf('Espectro en pasa banda (Rx, f_c = %.2f)', fc));
+xlim([-0.5 0.5]); ylim([-80 5]);
