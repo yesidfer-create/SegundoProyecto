@@ -32,23 +32,23 @@ end
 fprintf('=======================================\n');
 
 %% ============ TABLA 2: Diferencias ΔEb/N0 ============
-fprintf('\n\n===== TABLA DE DIFERENCIAS ΔEb/N0 (dB) =====\n');
-fprintf('  BER    | 4PAM-4QAM | 4PSK-4QAM | 4QAM-4PAM\n');
+fprintf('\n\n============ TABLA DE DIFERENCIAS ΔEb/N0 (dB) ============\n');
+fprintf('  BER    | 4PAM-4QAM | 4PSK-4QAM | 4PSK-4PAM\n'); % <-- Título corregido
 fprintf('---------+-----------+-----------+-----------\n');
 for j = 1:length(BER_obj)
     d1 = EbNo_tabla(j,1) - EbNo_tabla(j,2);   % 4PAM - 4QAM
     d2 = EbNo_tabla(j,3) - EbNo_tabla(j,2);   % 4PSK - 4QAM
-    d3 = EbNo_tabla(j,2) - EbNo_tabla(j,1);   % 4QAM - 4PAM
+    d3 = EbNo_tabla(j,3) - EbNo_tabla(j,1);   % 4PSK - 4PAM (¡AQUÍ ESTÁ EL CAMBIO!)
     fprintf(' 10^%-3d  |   %+6.2f  |   %+6.2f  |   %+6.2f\n', ...
         round(log10(BER_obj(j))), d1, d2, d3);
 end
-fprintf('============================================\n');
+fprintf('==========================================================\n');
 
 %% ============ GRÁFICA DE BARRAS ============
 figure('Name', 'Tabla ΔEb/N0', 'Position', [200 200 800 450]);
-Delta = [EbNo_tabla(:,1) - EbNo_tabla(:,2), ...
-    EbNo_tabla(:,3) - EbNo_tabla(:,2), ...
-    EbNo_tabla(:,2) - EbNo_tabla(:,1)];
+Delta = [EbNo_tabla(:,1) - EbNo_tabla(:,2), ...   % 4PAM - 4QAM
+    EbNo_tabla(:,3) - EbNo_tabla(:,2), ...   % 4PSK - 4QAM
+    EbNo_tabla(:,3) - EbNo_tabla(:,1)];      % 4PSK - 4PAM (¡AQUÍ ESTÁ EL CAMBIO!)
 
 b = bar(Delta, 'grouped');
 grid on;
@@ -61,7 +61,7 @@ set(gca, 'XTickLabel', ...
     'FontSize', 11);
 xlabel('BER', 'FontSize', 12);
 ylabel('\Delta E_b/N_0 (dB)', 'FontSize', 12);
-title('Diferencias Teóricas de E_b/N_0 entre esquemas', 'FontSize', 13);
-legend({'4PAM - 4QAM', '4PSK - 4QAM', '4QAM - 4PAM'}, ...
+title('Diferencias de E_b/N_0 entre esquemas', 'FontSize', 13);
+legend({'4PAM - 4QAM', '4PSK - 4QAM', '4PSK - 4PAM'}, ...
     'Location', 'best');
 yline(0, 'k-', 'LineWidth', 1);
