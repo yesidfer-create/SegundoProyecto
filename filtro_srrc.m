@@ -28,7 +28,8 @@ for i = 1:length(t)
 
     elseif beta > 0 && abs(abs(ti) - 1/(4*beta)) < 1e-6
         % Caso t = ±1/(4β) (evita división por cero en el denominador)
-        h(i) = beta/sqrt(2) * ( (1 + 2/pi)*sin(pi/(4*beta)) - ...
+        % CORREGIDO: signo + en el término del coseno
+        h(i) = beta/sqrt(2) * ( (1 + 2/pi)*sin(pi/(4*beta)) + ...
             (1 - 2/pi)*cos(pi/(4*beta)) );
     else
         % Caso general
