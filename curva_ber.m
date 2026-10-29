@@ -1,14 +1,16 @@
-%% curva_ber.m — Curva BER vs Eb/N0 (Simulada y Teórica)
+%% curva_ber.m — Curva BER vs Eb/N0 (Pasa Banda)
 clear; clc; close all;
 rng(42);
 
 %% ============ PARÁMETROS ============
-M       = 4;
+M       = 4;                   % 4 para comparar los 3 esquemas justamente
 beta    = 0.35;
 span    = 6;
 sps     = 8;
-N       = 100000;               
-EbNo_dB = 0:1:14;              
+N       = 100000;              % Símbolos por simulación
+EbNo_dB = 0:1:14;              % Barrido de 0 a 14 dB
+fc      = 0.15;                % Portadora
+
 tipos = {'PAM', 'QAM', 'PSK'};
 colores = {'b', 'r', 'g'};
 marcadores = {'o', 's', '^'};
@@ -18,14 +20,16 @@ h = filtro_srrc(beta, span, sps);
 retardo = span * sps;
 
 %% ============ SIMULACIÓN ============
-figure('Name', 'Curva BER vs Eb/N0', 'Position', [200 100 800 600]);
+figure('Name', 'Curva BER vs Eb/N0 (Sistema Real)', 'Position', [200 100 800 600]);
 hold on; grid on;
 
 for t = 1:length(tipos)
     tipo = tipos{t};
-    ber = zeros(size(EbNo_dB));
-    fprintf('Simulando %d-%s...\n', M, tipo);
+    ber_sim = zeros(size(EbNo_dB));
 
+    fprintf('\nSimulando %d-%s...\n', M, tipo);
+
+    % 1. Mapeo y Transmisión (Una sola vez)
     switch tipo
         case 'PAM', [simbolos, bits_tx, k] = mapeo_pam(M, N);
         case 'QAM', [simbolos, bits_tx, k] = mapeo_qam(M, N);
@@ -33,23 +37,35 @@ for t = 1:length(tipos)
     end
     C = constelacion(M, tipo);
 
-    simbolos_up = mi_upsample(simbolos, sps);
-    senal_tx = conv(simbolos_up, h, 'full');
+    simb_up = mi_upsample(simbolos, sps);
+    sen_bb_tx = conv(simb_up, h, 'full');
 
+    % Modulación a Pasa Banda (Una sola vez)
+    n = (0:length(sen_bb_tx)-1)';
+    sen_pb_tx = real(sen_bb_tx .* exp(1j*2*pi*fc*n));
+
+    % 2. Barrido de Eb/N0
     for i = 1:length(EbNo_dB)
-        senal_rx = canal_awgn(senal_tx, EbNo_dB(i), k);
-        senal_filtrada = conv(senal_rx, h, 'full');
-        muestras = senal_filtrada(retardo+1 : sps : retardo + N*sps);
+        % Canal AWGN (Real)
+        sen_pb_rx = canal_awgn(sen_pb_tx, EbNo_dB(i), k);
+
+        % Demodulación (Bajar a BB)
+        sen_bb_rx = sen_pb_rx .* exp(-1j*2*pi*fc*n);
+
+        % Filtro Rx y Muestreo
+        sen_fil = conv(sen_bb_rx, h, 'full');
+        muestras = sen_fil(retardo+1 : sps : retardo + N*sps);
+
+        % Decisión
         [bits_rx, ~] = decisor(muestras, C, k);
-        ber(i) = sum(bits_tx ~= bits_rx) / length(bits_tx);
+        ber_sim(i) = sum(bits_tx ~= bits_rx) / length(bits_tx);
     end
 
-    % --- Gráfica Simulada (usando NaN en lugar de 1e-6) ---
-    ber_plot = ber;
+    % --- Gráfica Simulada ---
+    ber_plot = ber_sim;
     ber_plot(ber_plot == 0) = NaN; 
     semilogy(EbNo_dB, ber_plot, [colores{t} marcadores{t} '-'], ...
-        'LineWidth', 2, 'MarkerSize', 8, ...
-        'DisplayName', sprintf('%d-%s (Sim)', M, tipo));
+        'LineWidth', 2, 'MarkerSize', 8, 'DisplayName', sprintf('%d-%s (Sim)', M, tipo));
 
     % --- Gráfica Teórica ---
     ber_teo = zeros(size(EbNo_dB));
@@ -62,15 +78,14 @@ for t = 1:length(tipos)
         end
     end
     semilogy(EbNo_dB, ber_teo, [colores{t} '--'], ...
-        'LineWidth', 1.5, ...
-        'DisplayName', sprintf('%d-%s (Teo)', M, tipo));
+        'LineWidth', 1.5, 'DisplayName', sprintf('%d-%s (Teo)', M, tipo));
 end
 
 %% ============ ESTILO ============
 set(gca, 'YScale', 'log');
 xlabel('E_b/N_0 (dB)', 'FontSize', 12);
 ylabel('BER', 'FontSize', 12);
-title(sprintf('Curva BER vs E_b/N_0 — %d-PAM / %d-QAM / %d-PSK', M, M, M));
-legend('Location', 'southwest', 'FontSize', 10);
+title(sprintf('Curva BER vs E_b/N_0 (Simulación Pasa Banda Real)'));
+legend('Location', 'southwest', 'FontSize', 9);
 ylim([1e-6 1]);
 xlim([0 14]);
