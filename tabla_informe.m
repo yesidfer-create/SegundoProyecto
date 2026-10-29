@@ -1,12 +1,13 @@
-%% tabla_informe.m — Tabla del informe y validación
+%% tabla_informe.m — Tabla del informe y validación (Pasa Banda)
 clear; clc; close all;
 rng(42);
 
 %% ============ PARÁMETROS GLOBALES ============
-beta  = 0.35;      % Definido aquí para que no falle después
+beta  = 0.35;
 span  = 6;
 sps   = 8;
 M     = 4;
+fc    = 0.15; % Frecuencia portadora
 BER_obj = [1e-2, 1e-3, 1e-4, 1e-5, 1e-6, 1e-7];
 
 %% ============ CÁLCULO TEÓRICO ============
@@ -48,9 +49,9 @@ fprintf('==========================================================\n');
 
 %% ============ GRÁFICA DE BARRAS ============
 figure('Name', 'Tabla ΔEb/N0', 'Position', [200 200 800 450]);
-Delta = [EbNo_tabla(:,1) - EbNo_tabla(:,2), ...   % 4PAM - 4QAM
-         EbNo_tabla(:,3) - EbNo_tabla(:,2), ...   % 4PSK - 4QAM
-         EbNo_tabla(:,3) - EbNo_tabla(:,1)];      % 4PSK - 4PAM
+Delta = [EbNo_tabla(:,1) - EbNo_tabla(:,2), ...   
+         EbNo_tabla(:,3) - EbNo_tabla(:,2), ...   
+         EbNo_tabla(:,3) - EbNo_tabla(:,1)];      
 
 b = bar(Delta, 'grouped');
 grid on;
@@ -86,12 +87,28 @@ for t = 1:3
         case 'PSK', [simb, bits_tx, k] = mapeo_psk(M, N_val);
     end
     C  = constelacion(M, tipos_val{t});
-    tx = conv(mi_upsample(simb, sps), h, 'full');
+    
+    % 1. Conformación en Banda Base
+    sen_bb_tx = conv(mi_upsample(simb, sps), h, 'full');
+    
+    % 2. Modulación a Pasa Banda
+    n = (0:length(sen_bb_tx)-1)';
+    sen_pb_tx = real(sen_bb_tx .* exp(1j*2*pi*fc*n));
     
     for j = 1:N_validar
-        rx       = canal_awgn(tx, EbNo_tabla(j,t), k);
-        filtrada = conv(rx, h, 'full');
+        % 3. Canal AWGN Real
+        sen_pb_rx = canal_awgn(sen_pb_tx, EbNo_tabla(j,t), k);
+        
+        % 4. Demodulación I/Q
+        I_rx = 2 * sen_pb_rx .* cos(2*pi*fc*n);
+        Q_rx = -2 * sen_pb_rx .* sin(2*pi*fc*n);
+        sen_bb_rx = I_rx + 1j*Q_rx;
+        
+        % 5. Filtro Rx y Muestreo
+        filtrada = conv(sen_bb_rx, h, 'full');
         muestras = filtrada(retardo+1 : sps : retardo + N_val*sps);
+        
+        % 6. Decisión
         [bits_rx, ~] = decisor(muestras, C, k);
         BER_sim(j,t) = sum(bits_tx ~= bits_rx) / length(bits_tx);
     end

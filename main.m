@@ -40,9 +40,26 @@ n = (0:length(sen_bb_tx)-1)';
 % Tomamos la parte real para generar la onda física
 sen_pb_tx = real(sen_bb_tx .* exp(1j*2*pi*fc*n));
 
-%% ============ 3. CANAL AWGN ============
-% El ruido se suma a la onda física que viaja por el canal
+% -- Modulación a Pasa Banda --
+n_pb = (0:length(sen_tx)-1)';
+sen_pb_tx = real(sen_tx .* exp(1j*2*pi*fc*n_pb));
+
+% -- Canal AWGN (Ruido real) --
 sen_pb_rx = canal_awgn(sen_pb_tx, EbNo_dB, k);
+
+% Demodulación I/Q (Receptor Físico)
+I_rx = 2 * sen_pb_rx .* cos(2*pi*fc*n);
+Q_rx = -2 * sen_pb_rx .* sin(2*pi*fc*n);
+sen_bb_rx = I_rx + 1j*Q_rx;
+
+% --- FILTRO PASABAJOS EXTRA (Anti-2fc) ---
+% Un promediado de sps muestras elimina la alta frecuencia
+sen_bb_rx = filter(ones(1, sps)/sps, 1, sen_bb_rx);
+
+% Filtro Rx (SRRC) y Muestreo
+sen_fil = conv(sen_bb_rx, h, 'full');
+% Ajustamos el retardo por el filtro extra (aprox sps/2)
+muestras = sen_fil(retardo+1 : sps : retardo + N*sps);
 
 %% ============ 4. RECEPTOR ============
 % --- DEMODULACIÓN A BANDA BASE ---
